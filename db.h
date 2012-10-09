@@ -14,9 +14,9 @@
 
 #define REQUIRE_VERSION 40000
 
-static inline int GetRequireHeight(const bool testnet = fTestNet)
+static inline int GetRequireHeight()
 {
-    return testnet ? 0 : 230000;
+    return 0;
 }
 
 std::string static inline ToString(const CService &ip) {
@@ -101,7 +101,7 @@ public:
   }
   
   bool IsGood() const {
-    if (ip.GetPort() != GetDefaultPort()) return false;
+    if (ip.GetPort() != ::nP2Port) return false;
     if (!(services & NODE_NETWORK)) return false;
     if (!ip.IsRoutable()) return false;
     if (clientVersion && clientVersion < REQUIRE_VERSION) return false;

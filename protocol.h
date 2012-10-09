@@ -15,11 +15,7 @@
 #include <string>
 #include "uint256.h"
 
-extern bool fTestNet;
-static inline unsigned short GetDefaultPort(const bool testnet = fTestNet)
-{
-    return testnet ? 18333 : 8333;
-}
+extern unsigned short nP2Port;
 
 //
 // Message header
