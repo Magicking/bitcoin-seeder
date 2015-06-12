@@ -9,10 +9,9 @@
 #include "netbase.h"
 #include "protocol.h"
 #include "util.h"
+#include "serialize.h"
 
 #define MIN_RETRY 1000
-
-#define REQUIRE_VERSION 40000
 
 static inline int GetRequireHeight()
 {
@@ -104,7 +103,7 @@ public:
     if (ip.GetPort() != ::nP2Port) return false;
     if (!(services & NODE_NETWORK)) return false;
     if (!ip.IsRoutable()) return false;
-    if (clientVersion && clientVersion < REQUIRE_VERSION) return false;
+    if (clientVersion && clientVersion < ProtocolVersion) return false;
     if (blocks && blocks < GetRequireHeight()) return false;
 
     if (total <= 3 && success * 2 >= total) return true;

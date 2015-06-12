@@ -50,13 +50,11 @@ class CNode {
     if (nHeaderStart == -1) return;
     unsigned int nSize = vSend.size() - nMessageStart;
     memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nMessageSize), &nSize, sizeof(nSize));
-    if (vSend.GetVersion() >= 209) {
-      uint256 hash = Hash(vSend.begin() + nMessageStart, vSend.end());
-      unsigned int nChecksum = 0;
-      memcpy(&nChecksum, &hash, sizeof(nChecksum));
-      assert(nMessageStart - nHeaderStart >= offsetof(CMessageHeader, nChecksum) + sizeof(nChecksum));
-      memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nChecksum), &nChecksum, sizeof(nChecksum));
-    }
+    uint256 hash = Hash(vSend.begin() + nMessageStart, vSend.end());
+    unsigned int nChecksum = 0;
+    memcpy(&nChecksum, &hash, sizeof(nChecksum));
+    assert(nMessageStart - nHeaderStart >= offsetof(CMessageHeader, nChecksum) + sizeof(nChecksum));
+    memcpy((char*)&vSend[nHeaderStart] + offsetof(CMessageHeader, nChecksum), &nChecksum, sizeof(nChecksum));
     nHeaderStart = -1;
     nMessageStart = -1;
   }
@@ -81,7 +79,7 @@ class CNode {
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
     string ver = "/bitcoin-seeder:0.01/";
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
+    vSend << ProtocolVersion << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
     EndMessage();
   }
  
@@ -104,28 +102,21 @@ class CNode {
       CAddress addrFrom;
       uint64 nNonce = 1;
       vRecv >> nVersion >> you.nServices >> nTime >> addrMe;
-      if (nVersion == 10300) nVersion = 300;
-      if (nVersion >= 106 && !vRecv.empty())
+      if (!vRecv.empty())
         vRecv >> addrFrom >> nNonce;
-      if (nVersion >= 106 && !vRecv.empty())
+      if (!vRecv.empty())
         vRecv >> strSubVer;
-      if (nVersion >= 209 && !vRecv.empty())
+      if (!vRecv.empty())
         vRecv >> nStartingHeight;
       
-      if (nVersion >= 209) {
-        BeginMessage("verack");
-        EndMessage();
-      }
-      vSend.SetVersion(min(nVersion, PROTOCOL_VERSION));
-      if (nVersion < 209) {
-        this->vRecv.SetVersion(min(nVersion, PROTOCOL_VERSION));
-        GotVersion();
-      }
+      BeginMessage("verack");
+      EndMessage();
+      vSend.SetVersion(min(nVersion, ProtocolVersion));
       return false;
     }
     
     if (strCommand == "verack") {
-      this->vRecv.SetVersion(min(nVersion, PROTOCOL_VERSION));
+      this->vRecv.SetVersion(min(nVersion, ProtocolVersion));
       GotVersion();
       return false;
     }
@@ -184,12 +175,10 @@ class CNode {
         vRecv.insert(vRecv.begin(), vHeaderSave.begin(), vHeaderSave.end());
         break;
       }
-      if (vRecv.GetVersion() >= 209) {
-        uint256 hash = Hash(vRecv.begin(), vRecv.begin() + nMessageSize);
-        unsigned int nChecksum = 0;
-        memcpy(&nChecksum, &hash, sizeof(nChecksum));
-        if (nChecksum != hdr.nChecksum) continue;
-      }
+      uint256 hash = Hash(vRecv.begin(), vRecv.begin() + nMessageSize);
+      unsigned int nChecksum = 0;
+      memcpy(&nChecksum, &hash, sizeof(nChecksum));
+      if (nChecksum != hdr.nChecksum) continue;
       CDataStream vMsg(vRecv.begin(), vRecv.begin() + nMessageSize, vRecv.nType, vRecv.nVersion);
       vRecv.ignore(nMessageSize);
       if (ProcessMessage(strCommand, vMsg))
@@ -202,13 +191,9 @@ class CNode {
 public:
   CNode(const CService& ip, vector<CAddress>* vAddrIn) : you(ip), nHeaderStart(-1), nMessageStart(-1), vAddr(vAddrIn), ban(0), doneAfter(0), nVersion(0) {
     vSend.SetType(SER_NETWORK);
-    vSend.SetVersion(0);
+    vSend.SetVersion(209); // Remove timestamp from version msg
     vRecv.SetType(SER_NETWORK);
-    vRecv.SetVersion(0);
-    if (time(NULL) > 1329696000) {
-      vSend.SetVersion(209);
-      vRecv.SetVersion(209);
-    }
+    vRecv.SetVersion(209); // Remove timestamp from version msg
   }
   bool Run() {
     bool res = true;

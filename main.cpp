@@ -21,6 +21,8 @@ public:
   int nDnsThreads;
   int fWipeBan;
   int fWipeIgnore;
+  int nProtocolVersion;
+  int nMinimumHeight;
   const char *mbox;
   const char *ns;
   const char *host;
@@ -28,26 +30,28 @@ public:
   const char *magic;
   vector<string> vSeeds;
 
-  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fWipeBan(false), fWipeIgnore(false), magic(NULL), vSeeds(), nP2Port(0) { }
+  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fWipeBan(false), fWipeIgnore(false), magic(NULL), vSeeds(), nP2Port(0), nProtocolVersion(1), nMinimumHeight(1) { }
 
   void ParseCommandLine(int argc, char **argv) {
     static const char *help = "Bitcoin-seeder\n"
                               "Usage: %s -h <host> -n <ns> [-m <mbox>] [-t <threads>] [-p <port>]\n"
                               "\n"
                               "Options:\n"
-                              "-s <seed>       Seed node to collect peers from\n"
-                              "-h <host>       Hostname of the DNS seed\n"
-                              "-n <ns>         Hostname of the nameserver\n"
-                              "-m <mbox>       E-Mail address reported in SOA records\n"
-                              "-t <threads>    Number of crawlers to run in parallel (default 96)\n"
-                              "-d <threads>    Number of DNS server threads (default 4)\n"
-                              "-p <port>       UDP port to listen on (default 53)\n"
-                              "-o <ip:port>    Tor proxy IP/Port\n"
-                              "--p2port <port> P2P port to connect to\n"
-                              "--magic <hex>   Magic string/network prefix\n"
-                              "--wipeban       Wipe list of banned nodes\n"
-                              "--wipeignore    Wipe list of ignored nodes\n"
-                              "-?, --help      Show this text\n"
+                              "-s <seed>         Seed node to collect peers from\n"
+                              "-h <host>         Hostname of the DNS seed\n"
+                              "-n <ns>           Hostname of the nameserver\n"
+                              "-m <mbox>         E-Mail address reported in SOA records\n"
+                              "-t <threads>      Number of crawlers to run in parallel (default 96)\n"
+                              "-d <threads>      Number of DNS server threads (default 4)\n"
+                              "-p <port>         UDP port to listen on (default 53)\n"
+                              "-o <ip:port>      Tor proxy IP/Port\n"
+                              "--p2port <port>   P2P port to connect to\n"
+                              "--magic <hex>     Magic string/network prefix\n"
+                              "--version <hex>   Protocol version\n"
+                              "--minheight <hex> Minimum height to accept client\n"
+                              "--wipeban         Wipe list of banned nodes\n"
+                              "--wipeignore      Wipe list of ignored nodes\n"
+                              "-?, --help        Show this text\n"
                               "\n";
     bool showHelp = false;
 
@@ -63,6 +67,8 @@ public:
         {"onion", required_argument, 0, 'o'},
         {"p2port", required_argument, 0, 'b'},
         {"magic", required_argument, 0, 'k'},
+        {"version", required_argument, 0, 'v'},
+        {"minheigt", no_argument, 0, 'l'},
         {"wipeban", no_argument, &fWipeBan, 1},
         {"wipeignore", no_argument, &fWipeBan, 1},
         {"help", no_argument, 0, 'h'},
@@ -134,6 +140,18 @@ public:
             sscanf(&magic[n*2], "%2x", &c);
             pchMessageStart[n] = (unsigned char) (c & 0xff);
           }
+          break;
+        }
+        case 'v': {
+          int n = strtol(optarg, NULL, 10);
+          if (n > 0) nProtocolVersion = n;
+          else showHelp = true;
+          break;
+        }
+        case 'l': {
+          int n = strtol(optarg, NULL, 10);
+          if (n > 0) nMinimumHeight = n;
+          else showHelp = true;
           break;
         }
 
@@ -395,12 +413,17 @@ extern "C" void* ThreadSeeder(void*) {
   } while(1);
 }
 
+int ProtocolVersion;
+int MinimumHeight;
+
 int main(int argc, char **argv) {
   signal(SIGPIPE, SIG_IGN);
   setbuf(stdout, NULL);
   CDnsSeedOpts opts;
   opts.ParseCommandLine(argc, argv);
   nP2Port = opts.nP2Port;
+  ProtocolVersion = opts.nProtocolVersion;
+  MinimumHeight = opts.nMinimumHeight;
   vSeeds.reserve(vSeeds.size() + opts.vSeeds.size());
   vSeeds.insert(vSeeds.end(), opts.vSeeds.begin(), opts.vSeeds.end());
   if (opts.vSeeds.empty()) {
