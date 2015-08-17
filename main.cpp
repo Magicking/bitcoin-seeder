@@ -27,10 +27,12 @@ public:
   const char *ns;
   const char *host;
   const char *tor;
+  const char *ipv4_proxy;
+  const char *ipv6_proxy;
   const char *magic;
   vector<string> vSeeds;
 
-  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fWipeBan(false), fWipeIgnore(false), magic(NULL), vSeeds(), nP2Port(0), nProtocolVersion(1), nMinimumHeight(1) { }
+  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL), magic(NULL), vSeeds(), nP2Port(0), nProtocolVersion(1), nMinimumHeight(1) {}
 
   void ParseCommandLine(int argc, char **argv) {
     static const char *help = "Bitcoin-seeder\n"
@@ -45,6 +47,8 @@ public:
                               "-d <threads>      Number of DNS server threads (default 4)\n"
                               "-p <port>         UDP port to listen on (default 53)\n"
                               "-o <ip:port>      Tor proxy IP/Port\n"
+                              "-i <ip:port>      IPV4 SOCKS5 proxy IP/Port\n"
+                              "-k <ip:port>      IPV6 SOCKS5 proxy IP/Port\n"
                               "--p2port <port>   P2P port to connect to\n"
                               "--magic <hex>     Magic string/network prefix\n"
                               "--version <hex>   Protocol version\n"
@@ -65,8 +69,10 @@ public:
         {"dnsthreads", required_argument, 0, 'd'},
         {"port", required_argument, 0, 'p'},
         {"onion", required_argument, 0, 'o'},
+        {"proxyipv4", required_argument, 0, 'i'},
+        {"proxyipv6", required_argument, 0, 'k'},
         {"p2port", required_argument, 0, 'b'},
-        {"magic", required_argument, 0, 'k'},
+        {"magic", required_argument, 0, 'q'},
         {"version", required_argument, 0, 'v'},
         {"minheigt", no_argument, 0, 'l'},
         {"wipeban", no_argument, &fWipeBan, 1},
@@ -75,7 +81,7 @@ public:
         {0, 0, 0, 0}
       };
       int option_index = 0;
-      int c = getopt_long(argc, argv, "s:h:n:m:t:p:d:o:b:k:", long_options, &option_index);
+      int c = getopt_long(argc, argv, "s:h:n:m:t:p:d:o:i:k:b:", long_options, &option_index);
       if (c == -1) break;
       switch (c) {
         case 's': {
@@ -115,7 +121,7 @@ public:
           if (p > 0 && p < 65536) nPort = p;
           break;
         }
-        
+
         case 'o': {
           tor = optarg;
           break;
@@ -127,7 +133,12 @@ public:
           break;
         }
 
-        case 'k': {
+        case 'i': {
+          ipv4_proxy = optarg;
+          break;
+        }
+
+        case 'q': {
           long int n;
           unsigned int c;
           magic = optarg;
@@ -142,16 +153,23 @@ public:
           }
           break;
         }
+
         case 'v': {
           int n = strtol(optarg, NULL, 10);
           if (n > 0) nProtocolVersion = n;
           else showHelp = true;
           break;
         }
+
         case 'l': {
           int n = strtol(optarg, NULL, 10);
           if (n > 0) nMinimumHeight = n;
           else showHelp = true;
+          break;
+        }
+
+        case 'k': {
+          ipv6_proxy = optarg;
           break;
         }
 
@@ -237,14 +255,12 @@ public:
           memcpy(&a.data.v4, &addr, 4);
           cache.push_back(a);
           nIPv4++;
-#ifdef USE_IPV6
         } else if ((*it).GetIn6Addr(&addr6)) {
           addr_t a;
           a.v = 6;
           memcpy(&a.data.v6, &addr6, 16);
           cache.push_back(a);
           nIPv6++;
-#endif
         }
       }
       cacheHits = 0;
@@ -437,6 +453,20 @@ int main(int argc, char **argv) {
       SetProxy(NET_TOR, service);
     }
   }
+  if (opts.ipv4_proxy) {
+    CService service(opts.ipv4_proxy, 9050);
+    if (service.IsValid()) {
+      printf("Using IPv4 proxy at %s\n", service.ToStringIPPort().c_str());
+      SetProxy(NET_IPV4, service);
+    }
+  }
+  if (opts.ipv6_proxy) {
+    CService service(opts.ipv6_proxy, 9050);
+    if (service.IsValid()) {
+      printf("Using IPv6 proxy at %s\n", service.ToStringIPPort().c_str());
+      SetProxy(NET_IPV6, service);
+    }
+  }
   bool fDNS = true;
   if (!opts.ns) {
     printf("No nameserver set. Not starting DNS server.\n");
@@ -444,6 +474,10 @@ int main(int argc, char **argv) {
   }
   if (fDNS && !opts.host) {
     fprintf(stderr, "No hostname set. Please use -h.\n");
+    exit(1);
+  }
+  if (fDNS && !opts.mbox) {
+    fprintf(stderr, "No e-mail address set. Please use -m.\n");
     exit(1);
   }
   FILE *f = fopen("dnsseed.dat","r");

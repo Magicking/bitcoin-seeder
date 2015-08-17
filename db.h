@@ -13,9 +13,11 @@
 
 #define MIN_RETRY 1000
 
+extern int MinimumHeight;
+
 static inline int GetRequireHeight()
 {
-    return 0;
+    return MinimumHeight;
 }
 
 std::string static inline ToString(const CService &ip) {
